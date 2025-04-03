@@ -1,10 +1,6 @@
 # Zig String (A UTF-8 String Library)
 
-[![CI](https://github.com/JakubSzark/zig-string/actions/workflows/main.yml/badge.svg)](https://github.com/JakubSzark/zig-string/actions/workflows/main.yml) ![Github Repo Issues](https://img.shields.io/github/issues/JakubSzark/zig-string?style=flat) ![GitHub Repo stars](https://img.shields.io/github/stars/JakubSzark/zig-string?style=social)
-
-This library is a UTF-8 compatible **string** library for the **Zig** programming language.
-I made this for the sole purpose to further my experience and understanding of zig.
-Also it may be useful for some people who need it (including myself), with future projects. Project is also open for people to add to and improve. Please check the **issues** to view requested features.
+This library is a UTF-8 compatible **string** library for the **Zig** programming language. I copied [JakubSzark's](https://github.com/JakubSzark/zig-string) String implementation and expanded on it.
 
 # Basic Usage
 
@@ -12,15 +8,17 @@ Also it may be useful for some people who need it (including myself), with futur
 
 ```zig
 const std = @import("std");
-const String = @import("./zig-string.zig").String;
+const String = @import("./stringz.zig").StringManaged;
 // ...
 
 // Use your favorite allocator
 var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
 defer arena.deinit();
+const allocator = arena.allocator();
+
 
 // Create your String
-var myString = String.init(arena.allocator());
+var myString = String.init(allocator);
 defer myString.deinit();
 
 // Use functions provided
@@ -37,21 +35,22 @@ std.debug.assert(myString.cmp("🔥 Hello, World 🔥"));
 
 ```zig
 const std = @import("std");
-const StringUnmanaged = @import("./zig-string.zig").StringUnmanaged;
+const String = @import("./stringz.zig").StringUnmanaged;
 // ...
 
 // Use your favorite allocator
 var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
 defer arena.deinit();
+const allocator = arena.allocator();
 
 // Create your String
 var myString = String.init();
-defer myString.deinit(arena.allocator());
+defer myString.deinit(allocator);
 
 // Use functions provided
-try myString.concat(arena.allocator(), "🔥 Hello!");
+try myString.concat(allocator, "🔥 Hello!");
 _ = myString.pop();
-try myString.concat(arena.allocator(), ", World 🔥");
+try myString.concat(allocator, ", World 🔥");
 
 // Success!
 std.debug.assert(myString.cmp("🔥 Hello, World 🔥"));
@@ -60,7 +59,7 @@ std.debug.assert(myString.cmp("🔥 Hello, World 🔥"));
 
 ## When To Use Which?
 
-If simplicity is what you want and you don't need granular control over memory, then use `String` (this is fine for most cases). Otherwise you probably want `StringUnmanaged`.
+If simplicity is what you want and you don't need granular control over memory, then use `StringManaged` (this is fine for most cases). Otherwise you probably want `StringUnmanaged`.
 
 | Feature                         | String | StringUnmanaged            |
 | ------------------------------- | ------ | -------------------------- |
@@ -76,8 +75,8 @@ Add this to your build.zig.zon
 ```zig
 .dependencies = .{
     .string = .{
-        .url = "https://github.com/JakubSzark/zig-string/archive/refs/heads/master.tar.gz",
-        //the correct hash will be suggested by zig
+        .url = "https://github.com/definitepotato/stringz/archive/refs/heads/master.tar.gz",
+        // The correct hash will be suggested by zig at build time.
     }
 }
 
@@ -86,19 +85,24 @@ Add this to your build.zig.zon
 And add this to you build.zig
 
 ```zig
-    const string = b.dependency("string", .{
+    const string = b.dependency("stringz", .{
         .target = target,
         .optimize = optimize,
     });
-    exe.root_module.addImport("string", string.module("string"));
+    exe.root_module.addImport("stringz", string.module("stringz"));
 
 ```
 
 You can then import the library into your code like this
 
 ```zig
-const String = @import("string").String;
-const StringUnmanaged = @import("string").StringUnmanaged;
+const String = @import("stringz").StringManaged;
+```
+
+Or
+
+```zig
+const String = @import("stringz").StringUnmanaged;
 ```
 
 # How to Contribute

@@ -3,7 +3,7 @@ const assert = std.debug.assert;
 const builtin = @import("builtin");
 
 /// A managed variable length collection of characters
-pub const String = struct {
+pub const StringManaged = struct {
     /// A variable length collection of characters
     const Self = @This();
     /// The internal character buffer
