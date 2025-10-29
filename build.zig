@@ -5,13 +5,13 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     _ = b.addModule("string", .{
-        .root_source_file = b.path("zig-string.zig"),
+        .root_source_file = b.path("stringz.zig"),
         .target = target,
         .optimize = optimize,
     });
 
     const test_mod = b.addModule("string-tests", .{
-        .root_source_file = b.path("zig-string-tests.zig"),
+        .root_source_file = b.path("stringz-tests.zig"),
         .target = target,
         .optimize = optimize,
     });

@@ -4,8 +4,6 @@ const builtin = @import("builtin");
 
 /// A managed variable length collection of characters
 pub const StringManaged = struct {
-    /// A variable length collection of characters
-    const Self = @This();
     /// The internal character buffer
     buffer: ?[]u8,
     /// The allocator used for managing the buffer
@@ -27,7 +25,7 @@ pub const StringManaged = struct {
     /// defer _ = str.deinit();
     /// ```
     /// User is responsible for managing the new String
-    pub fn init(allocator: std.mem.Allocator) Self {
+    pub fn init(allocator: std.mem.Allocator) StringManaged {
         // for windows non-ascii characters
         // check if the system is windows
         if (builtin.os.tag == std.Target.Os.Tag.windows) {
@@ -41,7 +39,7 @@ pub const StringManaged = struct {
         };
     }
 
-    pub fn init_with_contents(allocator: std.mem.Allocator, contents: []const u8) Error!Self {
+    pub fn init_with_contents(allocator: std.mem.Allocator, contents: []const u8) Error!StringManaged {
         var string = init(allocator);
 
         try string.concat(contents);
@@ -56,18 +54,18 @@ pub const StringManaged = struct {
     /// // deinit after the closure
     /// defer _ = str.deinit();
     /// ```
-    pub fn deinit(self: *Self) void {
+    pub fn deinit(self: *StringManaged) void {
         if (self.buffer) |buffer| self.allocator.free(buffer);
     }
 
     /// Returns the size of the internal buffer
-    pub fn capacity(self: Self) usize {
+    pub fn capacity(self: StringManaged) usize {
         if (self.buffer) |buffer| return buffer.len;
         return 0;
     }
 
     /// Allocates space for the internal buffer
-    pub fn allocate(self: *Self, bytes: usize) Error!void {
+    pub fn allocate(self: *StringManaged, bytes: usize) Error!void {
         if (self.buffer) |buffer| {
             if (bytes < self.size) self.size = bytes; // Clamp size to capacity
             self.buffer = self.allocator.realloc(buffer, bytes) catch {
@@ -81,17 +79,17 @@ pub const StringManaged = struct {
     }
 
     /// Reallocates the the internal buffer to size
-    pub fn truncate(self: *Self) Error!void {
+    pub fn truncate(self: *StringManaged) Error!void {
         try self.allocate(self.size);
     }
 
     /// Appends a character onto the end of the String
-    pub fn concat(self: *Self, char: []const u8) Error!void {
+    pub fn concat(self: *StringManaged, char: []const u8) Error!void {
         try self.insert(char, self.len());
     }
 
     /// Inserts a string literal into the String at an index
-    pub fn insert(self: *Self, literal: []const u8, index: usize) Error!void {
+    pub fn insert(self: *StringManaged, literal: []const u8, index: usize) Error!void {
         // Make sure buffer has enough space
         if (self.buffer) |buffer| {
             if (self.size + literal.len > buffer.len) {
@@ -111,7 +109,7 @@ pub const StringManaged = struct {
                 buffer[self.size + i] = literal[i];
             }
         } else {
-            if (Self.getIndex(buffer, index, true)) |k| {
+            if (StringManaged.getIndex(buffer, index, true)) |k| {
                 // Move existing contents over
                 var i: usize = buffer.len - 1;
                 while (i >= k) : (i -= 1) {
@@ -133,13 +131,13 @@ pub const StringManaged = struct {
     }
 
     /// Removes the last character from the String
-    pub fn pop(self: *Self) ?[]const u8 {
+    pub fn pop(self: *StringManaged) ?[]const u8 {
         if (self.size == 0) return null;
 
         if (self.buffer) |buffer| {
             var i: usize = 0;
             while (i < self.size) {
-                const size = Self.getUTF8Size(buffer[i]);
+                const size = StringManaged.getUTF8Size(buffer[i]);
                 if (i + size >= self.size) break;
                 i += size;
             }
@@ -153,7 +151,7 @@ pub const StringManaged = struct {
     }
 
     /// Compares this String with a string literal
-    pub fn cmp(self: Self, literal: []const u8) bool {
+    pub fn cmp(self: StringManaged, literal: []const u8) bool {
         if (self.buffer) |buffer| {
             return std.mem.eql(u8, buffer[0..self.size], literal);
         }
@@ -167,13 +165,13 @@ pub const StringManaged = struct {
     ///defer _ = mystr.deinit();
     ///std.debug.print("{s}\n", .{mystr.str()});
     ///```
-    pub fn str(self: Self) []const u8 {
+    pub fn str(self: StringManaged) []const u8 {
         if (self.buffer) |buffer| return buffer[0..self.size];
         return "";
     }
 
     /// Returns an owned slice of this string
-    pub fn toOwned(self: Self) Error!?[]u8 {
+    pub fn toOwned(self: StringManaged) Error!?[]u8 {
         if (self.buffer != null) {
             const string = self.str();
             if (self.allocator.alloc(u8, string.len)) |newStr| {
@@ -188,10 +186,10 @@ pub const StringManaged = struct {
     }
 
     /// Returns a character at the specified index
-    pub fn charAt(self: Self, index: usize) ?[]const u8 {
+    pub fn charAt(self: StringManaged, index: usize) ?[]const u8 {
         if (self.buffer) |buffer| {
-            if (Self.getIndex(buffer, index, true)) |i| {
-                const size = Self.getUTF8Size(buffer[i]);
+            if (StringManaged.getIndex(buffer, index, true)) |i| {
+                const size = StringManaged.getUTF8Size(buffer[i]);
                 return buffer[i..(i + size)];
             }
         }
@@ -199,13 +197,13 @@ pub const StringManaged = struct {
     }
 
     /// Returns amount of characters in the String
-    pub fn len(self: Self) usize {
+    pub fn len(self: StringManaged) usize {
         if (self.buffer) |buffer| {
             var length: usize = 0;
             var i: usize = 0;
 
             while (i < self.size) {
-                i += Self.getUTF8Size(buffer[i]);
+                i += StringManaged.getUTF8Size(buffer[i]);
                 length += 1;
             }
 
@@ -216,11 +214,11 @@ pub const StringManaged = struct {
     }
 
     /// Finds the first occurrence of the string literal
-    pub fn find(self: Self, literal: []const u8) ?usize {
+    pub fn find(self: StringManaged, literal: []const u8) ?usize {
         if (self.buffer) |buffer| {
             const index = std.mem.indexOf(u8, buffer[0..self.size], literal);
             if (index) |i| {
-                return Self.getIndex(buffer, i, false);
+                return StringManaged.getIndex(buffer, i, false);
             }
         }
 
@@ -228,11 +226,11 @@ pub const StringManaged = struct {
     }
 
     /// Finds the last occurrence of the string literal
-    pub fn rfind(self: Self, literal: []const u8) ?usize {
+    pub fn rfind(self: StringManaged, literal: []const u8) ?usize {
         if (self.buffer) |buffer| {
             const index = std.mem.lastIndexOf(u8, buffer[0..self.size], literal);
             if (index) |i| {
-                return Self.getIndex(buffer, i, false);
+                return StringManaged.getIndex(buffer, i, false);
             }
         }
 
@@ -240,19 +238,19 @@ pub const StringManaged = struct {
     }
 
     /// Removes a character at the specified index
-    pub fn remove(self: *Self, index: usize) Error!void {
+    pub fn remove(self: *StringManaged, index: usize) Error!void {
         try self.removeRange(index, index + 1);
     }
 
     /// Removes a range of character from the String
     /// Start (inclusive) - End (Exclusive)
-    pub fn removeRange(self: *Self, start: usize, end: usize) Error!void {
+    pub fn removeRange(self: *StringManaged, start: usize, end: usize) Error!void {
         const length = self.len();
         if (end < start or end > length) return Error.InvalidRange;
 
         if (self.buffer) |buffer| {
-            const rStart = Self.getIndex(buffer, start, true).?;
-            const rEnd = Self.getIndex(buffer, end, true).?;
+            const rStart = StringManaged.getIndex(buffer, start, true).?;
+            const rEnd = StringManaged.getIndex(buffer, end, true).?;
             const difference = rEnd - rStart;
 
             var i: usize = rEnd;
@@ -265,47 +263,47 @@ pub const StringManaged = struct {
     }
 
     /// Trims all whitelist characters at the start of the String.
-    pub fn trimStart(self: *Self, whitelist: []const u8) void {
+    pub fn trimStart(self: *StringManaged, whitelist: []const u8) void {
         if (self.buffer) |buffer| {
             var i: usize = 0;
             while (i < self.size) : (i += 1) {
-                const size = Self.getUTF8Size(buffer[i]);
+                const size = StringManaged.getUTF8Size(buffer[i]);
                 if (size > 1 or !inWhitelist(buffer[i], whitelist)) break;
             }
 
-            if (Self.getIndex(buffer, i, false)) |k| {
+            if (StringManaged.getIndex(buffer, i, false)) |k| {
                 self.removeRange(0, k) catch {};
             }
         }
     }
 
     /// Trims all whitelist characters at the end of the String.
-    pub fn trimEnd(self: *Self, whitelist: []const u8) void {
+    pub fn trimEnd(self: *StringManaged, whitelist: []const u8) void {
         self.reverse();
         self.trimStart(whitelist);
         self.reverse();
     }
 
     /// Trims all whitelist characters from both ends of the String
-    pub fn trim(self: *Self, whitelist: []const u8) void {
+    pub fn trim(self: *StringManaged, whitelist: []const u8) void {
         self.trimStart(whitelist);
         self.trimEnd(whitelist);
     }
 
     /// Copies this String into a new one
     /// User is responsible for managing the new String
-    pub fn clone(self: Self) Error!Self {
-        var newString = Self.init(self.allocator);
+    pub fn clone(self: StringManaged) Error!StringManaged {
+        var newString = StringManaged.init(self.allocator);
         try newString.concat(self.str());
         return newString;
     }
 
     /// Reverses the characters in this String
-    pub fn reverse(self: *Self) void {
+    pub fn reverse(self: *StringManaged) void {
         if (self.buffer) |buffer| {
             var i: usize = 0;
             while (i < self.size) {
-                const size = Self.getUTF8Size(buffer[i]);
+                const size = StringManaged.getUTF8Size(buffer[i]);
                 if (size > 1) std.mem.reverse(u8, buffer[i..(i + size)]);
                 i += size;
             }
@@ -315,7 +313,7 @@ pub const StringManaged = struct {
     }
 
     /// Repeats this String n times
-    pub fn repeat(self: *Self, n: usize) Error!void {
+    pub fn repeat(self: *StringManaged, n: usize) Error!void {
         try self.allocate(self.size * (n + 1));
         if (self.buffer) |buffer| {
             for (1..n + 1) |i| {
@@ -327,19 +325,19 @@ pub const StringManaged = struct {
     }
 
     /// Checks the String is empty
-    pub inline fn isEmpty(self: Self) bool {
+    pub inline fn isEmpty(self: StringManaged) bool {
         return self.size == 0;
     }
 
     /// Splits the String into a slice, based on a delimiter and an index
-    pub fn split(self: *const Self, delimiters: []const u8, index: usize) ?[]const u8 {
+    pub fn split(self: *const StringManaged, delimiters: []const u8, index: usize) ?[]const u8 {
         if (self.buffer) |buffer| {
             var i: usize = 0;
             var block: usize = 0;
             var start: usize = 0;
 
             while (i < self.size) {
-                const size = Self.getUTF8Size(buffer[i]);
+                const size = StringManaged.getUTF8Size(buffer[i]);
                 if (size == delimiters.len) {
                     if (std.mem.eql(u8, delimiters, buffer[i..(i + size)])) {
                         if (block == index) return buffer[start..i];
@@ -360,8 +358,8 @@ pub const StringManaged = struct {
     }
 
     /// Splits the String into slices, based on a delimiter.
-    pub fn splitAll(self: *const Self, delimiters: []const u8) ![][]const u8 {
-        var splitArr = std.ArrayList([]const u8).init(std.heap.page_allocator);
+    pub fn splitAll(self: *const StringManaged, delimiters: []const u8) ![][]const u8 {
+        var splitArr = std.array_list.Managed([]const u8).init(std.heap.page_allocator);
         defer splitArr.deinit();
 
         var i: usize = 0;
@@ -374,9 +372,9 @@ pub const StringManaged = struct {
 
     /// Splits the String into a new string, based on delimiters and an index
     /// The user of this function is in charge of the memory of the new String.
-    pub fn splitToString(self: *const Self, delimiters: []const u8, index: usize) Error!?Self {
+    pub fn splitToString(self: *const StringManaged, delimiters: []const u8, index: usize) Error!?StringManaged {
         if (self.split(delimiters, index)) |block| {
-            var string = Self.init(self.allocator);
+            var string = StringManaged.init(self.allocator);
             try string.concat(block);
             return string;
         }
@@ -386,8 +384,8 @@ pub const StringManaged = struct {
 
     /// Splits the String into a slice of new Strings, based on delimiters.
     /// The user of this function is in charge of the memory of the new Strings.
-    pub fn splitAllToStrings(self: *const Self, delimiters: []const u8) ![]Self {
-        var splitArr = std.ArrayList(Self).init(std.heap.page_allocator);
+    pub fn splitAllToStrings(self: *const StringManaged, delimiters: []const u8) ![]StringManaged {
+        var splitArr = std.array_list.Managed(StringManaged).init(std.heap.page_allocator);
         defer splitArr.deinit();
 
         var i: usize = 0;
@@ -399,8 +397,8 @@ pub const StringManaged = struct {
     }
 
     /// Splits the String into a slice of Strings by new line (\r\n or \n).
-    pub fn lines(self: *Self) ![]Self {
-        var lineArr = std.ArrayList(Self).init(std.heap.page_allocator);
+    pub fn lines(self: *StringManaged) ![]StringManaged {
+        var lineArr = std.array_list.Managed(StringManaged).init(std.heap.page_allocator);
         defer lineArr.deinit();
 
         var selfClone = try self.clone();
@@ -412,7 +410,7 @@ pub const StringManaged = struct {
     }
 
     /// Clears the contents of the String but leaves the capacity
-    pub fn clear(self: *Self) void {
+    pub fn clear(self: *StringManaged) void {
         if (self.buffer) |buffer| {
             for (buffer) |*ch| ch.* = 0;
             self.size = 0;
@@ -420,11 +418,11 @@ pub const StringManaged = struct {
     }
 
     /// Converts all (ASCII) uppercase letters to lowercase
-    pub fn toLowercase(self: *Self) void {
+    pub fn toLowercase(self: *StringManaged) void {
         if (self.buffer) |buffer| {
             var i: usize = 0;
             while (i < self.size) {
-                const size = Self.getUTF8Size(buffer[i]);
+                const size = StringManaged.getUTF8Size(buffer[i]);
                 if (size == 1) buffer[i] = std.ascii.toLower(buffer[i]);
                 i += size;
             }
@@ -432,11 +430,11 @@ pub const StringManaged = struct {
     }
 
     /// Converts all (ASCII) uppercase letters to lowercase
-    pub fn toUppercase(self: *Self) void {
+    pub fn toUppercase(self: *StringManaged) void {
         if (self.buffer) |buffer| {
             var i: usize = 0;
             while (i < self.size) {
-                const size = Self.getUTF8Size(buffer[i]);
+                const size = StringManaged.getUTF8Size(buffer[i]);
                 if (size == 1) buffer[i] = std.ascii.toUpper(buffer[i]);
                 i += size;
             }
@@ -444,7 +442,7 @@ pub const StringManaged = struct {
     }
 
     // Convert the first (ASCII) character of each word to uppercase
-    pub fn toCapitalized(self: *Self) void {
+    pub fn toCapitalized(self: *StringManaged) void {
         if (self.size == 0) return;
 
         var buffer = self.buffer.?;
@@ -471,12 +469,12 @@ pub const StringManaged = struct {
 
     /// Creates a String from a given range
     /// User is responsible for managing the new String
-    pub fn substr(self: Self, start: usize, end: usize) Error!Self {
-        var result = Self.init(self.allocator);
+    pub fn substr(self: StringManaged, start: usize, end: usize) Error!StringManaged {
+        var result = StringManaged.init(self.allocator);
 
         if (self.buffer) |buffer| {
-            if (Self.getIndex(buffer, start, true)) |rStart| {
-                if (Self.getIndex(buffer, end, true)) |rEnd| {
+            if (StringManaged.getIndex(buffer, start, true)) |rStart| {
+                if (StringManaged.getIndex(buffer, end, true)) |rEnd| {
                     if (rEnd < rStart or rEnd > self.size)
                         return Error.InvalidRange;
                     try result.concat(buffer[rStart..rEnd]);
@@ -488,44 +486,65 @@ pub const StringManaged = struct {
     }
 
     // Writer functionality for the String.
-    pub usingnamespace struct {
-        pub const Writer = std.io.Writer(*Self, Error, appendWrite);
+    // pub const Writer = std.io.Writer(*String, Error, appendWrite);
+    pub const Writer = struct {
+        string: *StringManaged,
+        interface: std.Io.Writer,
+        err: ?Error = null,
 
-        pub fn writer(self: *Self) Writer {
-            return .{ .context = self };
-        }
-
-        fn appendWrite(self: *Self, m: []const u8) !usize {
-            try self.concat(m);
-            return m.len;
-        }
-    };
-
-    // Iterator support
-    pub usingnamespace struct {
-        pub const StringIterator = struct {
-            string: *const Self,
-            index: usize,
-
-            pub fn next(it: *StringIterator) ?[]const u8 {
-                if (it.string.buffer) |buffer| {
-                    if (it.index == it.string.size) return null;
-                    const i = it.index;
-                    it.index += Self.getUTF8Size(buffer[i]);
-                    return buffer[i..it.index];
-                } else {
-                    return null;
-                }
-            }
-        };
-
-        pub fn iterator(self: *const Self) StringIterator {
-            return StringIterator{
-                .string = self,
-                .index = 0,
+        fn drain(w: *std.Io.Writer, data: []const []const u8, splat: usize) std.Io.Writer.Error!usize {
+            _ = splat;
+            const a: *@This() = @alignCast(@fieldParentPtr("interface", w));
+            const buffered = w.buffered();
+            if (buffered.len != 0) return w.consume(a.string.appendWrite(buffered) catch |err| {
+                a.err = err;
+                return error.WriteFailed;
+            });
+            return a.string.appendWrite(data[0]) catch |err| {
+                a.err = err;
+                return error.WriteFailed;
             };
         }
     };
+
+    pub fn writer(self: *StringManaged, buffer: []u8) Writer {
+        return .{
+            .string = self,
+            .interface = .{
+                .buffer = buffer,
+                .vtable = &.{ .drain = Writer.drain },
+            },
+        };
+    }
+
+    fn appendWrite(self: *StringManaged, m: []const u8) !usize {
+        try self.concat(m);
+        return m.len;
+    }
+
+    // Iterator support
+    pub const StringIterator = struct {
+        string: *const StringManaged,
+        index: usize,
+
+        pub fn next(it: *StringIterator) ?[]const u8 {
+            if (it.string.buffer) |buffer| {
+                if (it.index == it.string.size) return null;
+                const i = it.index;
+                it.index += StringManaged.getUTF8Size(buffer[i]);
+                return buffer[i..it.index];
+            } else {
+                return null;
+            }
+        }
+    };
+
+    pub fn iterator(self: *const StringManaged) StringIterator {
+        return StringIterator{
+            .string = self,
+            .index = 0,
+        };
+    }
 
     /// Returns whether or not a character is whitelisted
     fn inWhitelist(char: u8, whitelist: []const u8) bool {
@@ -552,7 +571,7 @@ pub const StringManaged = struct {
             } else {
                 if (i == index) return j;
             }
-            i += Self.getUTF8Size(unicode[i]);
+            i += StringManaged.getUTF8Size(unicode[i]);
             j += 1;
         }
 
@@ -567,13 +586,13 @@ pub const StringManaged = struct {
     }
 
     /// Sets the contents of the String
-    pub fn setStr(self: *Self, contents: []const u8) Error!void {
+    pub fn setStr(self: *StringManaged, contents: []const u8) Error!void {
         self.clear();
         try self.concat(contents);
     }
 
     /// Checks the start of the string against a literal
-    pub fn startsWith(self: *Self, literal: []const u8) bool {
+    pub fn startsWith(self: *StringManaged, literal: []const u8) bool {
         if (self.buffer) |buffer| {
             const index = std.mem.indexOf(u8, buffer[0..self.size], literal);
             return index == 0;
@@ -582,7 +601,7 @@ pub const StringManaged = struct {
     }
 
     /// Checks the end of the string against a literal
-    pub fn endsWith(self: *Self, literal: []const u8) bool {
+    pub fn endsWith(self: *StringManaged, literal: []const u8) bool {
         if (self.buffer) |buffer| {
             const index = std.mem.lastIndexOf(u8, buffer[0..self.size], literal);
             const i: usize = self.size - literal.len;
@@ -592,7 +611,7 @@ pub const StringManaged = struct {
     }
 
     /// Replaces all occurrences of a string literal with another
-    pub fn replace(self: *Self, needle: []const u8, replacement: []const u8) !bool {
+    pub fn replace(self: *StringManaged, needle: []const u8, replacement: []const u8) !bool {
         if (self.buffer) |buffer| {
             const InputSize = self.size;
             const size = std.mem.replacementSize(u8, buffer[0..InputSize], needle, replacement);
@@ -610,7 +629,7 @@ pub const StringManaged = struct {
     }
 
     /// Checks if the needle String is within the source String
-    pub fn includesString(self: *Self, needle: Self) bool {
+    pub fn includesString(self: *StringManaged, needle: StringManaged) bool {
         if (self.size == 0 or needle.size == 0) return false;
 
         if (self.buffer) |buffer| {
@@ -627,7 +646,7 @@ pub const StringManaged = struct {
     }
 
     /// Checks if the needle literal is within the source String
-    pub fn includesLiteral(self: *Self, needle: []const u8) bool {
+    pub fn includesLiteral(self: *StringManaged, needle: []const u8) bool {
         if (self.size == 0 or needle.len == 0) return false;
 
         if (self.buffer) |buffer| {
@@ -644,8 +663,6 @@ pub const StringManaged = struct {
 
 /// An unmanaged variable length collection of characters
 pub const StringUnmanaged = struct {
-    /// A variable length collection of characters
-    const Self = @This();
     /// The internal character buffer
     buffer: ?[]u8,
     /// The total size of the String
@@ -665,7 +682,7 @@ pub const StringUnmanaged = struct {
     /// defer _ = str.deinit();
     /// ```
     /// User is responsible for managing the new String
-    pub fn init() Self {
+    pub fn init() StringUnmanaged {
         // for windows non-ascii characters
         // check if the system is windows
         if (builtin.os.tag == std.Target.Os.Tag.windows) {
@@ -678,7 +695,7 @@ pub const StringUnmanaged = struct {
         };
     }
 
-    pub fn init_with_contents(allocator: std.mem.Allocator, contents: []const u8) Error!Self {
+    pub fn init_with_contents(allocator: std.mem.Allocator, contents: []const u8) Error!StringUnmanaged {
         var string = init();
 
         try string.concat(allocator, contents);
@@ -693,18 +710,18 @@ pub const StringUnmanaged = struct {
     /// // deinit after the closure
     /// defer _ = str.deinit();
     /// ```
-    pub fn deinit(self: *Self, allocator: std.mem.Allocator) void {
+    pub fn deinit(self: *StringUnmanaged, allocator: std.mem.Allocator) void {
         if (self.buffer) |buffer| allocator.free(buffer);
     }
 
     /// Returns the size of the internal buffer
-    pub fn capacity(self: Self) usize {
+    pub fn capacity(self: StringUnmanaged) usize {
         if (self.buffer) |buffer| return buffer.len;
         return 0;
     }
 
     /// Allocates space for the external buffer
-    pub fn allocate(self: *Self, allocator: std.mem.Allocator, bytes: usize) Error!void {
+    pub fn allocate(self: *StringUnmanaged, allocator: std.mem.Allocator, bytes: usize) Error!void {
         if (self.buffer) |buffer| {
             if (bytes < self.size) self.size = bytes; // Clamp size to capacity
             self.buffer = allocator.realloc(buffer, bytes) catch {
@@ -718,17 +735,17 @@ pub const StringUnmanaged = struct {
     }
 
     /// Reallocates the the internal buffer to size
-    pub fn truncate(self: *Self, allocator: std.mem.Allocator) Error!void {
+    pub fn truncate(self: *StringUnmanaged, allocator: std.mem.Allocator) Error!void {
         try self.allocate(allocator, self.size);
     }
 
     /// Appends a character onto the end of the String
-    pub fn concat(self: *Self, allocator: std.mem.Allocator, char: []const u8) Error!void {
+    pub fn concat(self: *StringUnmanaged, allocator: std.mem.Allocator, char: []const u8) Error!void {
         try self.insert(allocator, char, self.len());
     }
 
     /// Inserts a string literal into the String at an index
-    pub fn insert(self: *Self, allocator: std.mem.Allocator, literal: []const u8, index: usize) Error!void {
+    pub fn insert(self: *StringUnmanaged, allocator: std.mem.Allocator, literal: []const u8, index: usize) Error!void {
         // Make sure buffer has enough space
         if (self.buffer) |buffer| {
             if (self.size + literal.len > buffer.len) {
@@ -748,7 +765,7 @@ pub const StringUnmanaged = struct {
                 buffer[self.size + i] = literal[i];
             }
         } else {
-            if (Self.getIndex(buffer, index, true)) |k| {
+            if (StringUnmanaged.getIndex(buffer, index, true)) |k| {
                 // Move existing contents over
                 var i: usize = buffer.len - 1;
                 while (i >= k) : (i -= 1) {
@@ -770,13 +787,13 @@ pub const StringUnmanaged = struct {
     }
 
     /// Removes the last character from the String
-    pub fn pop(self: *Self) ?[]const u8 {
+    pub fn pop(self: *StringUnmanaged) ?[]const u8 {
         if (self.size == 0) return null;
 
         if (self.buffer) |buffer| {
             var i: usize = 0;
             while (i < self.size) {
-                const size = Self.getUTF8Size(buffer[i]);
+                const size = StringUnmanaged.getUTF8Size(buffer[i]);
                 if (i + size >= self.size) break;
                 i += size;
             }
@@ -790,7 +807,7 @@ pub const StringUnmanaged = struct {
     }
 
     /// Compares this String with a string literal
-    pub fn cmp(self: Self, literal: []const u8) bool {
+    pub fn cmp(self: StringUnmanaged, literal: []const u8) bool {
         if (self.buffer) |buffer| {
             return std.mem.eql(u8, buffer[0..self.size], literal);
         }
@@ -804,13 +821,13 @@ pub const StringUnmanaged = struct {
     ///defer _ = mystr.deinit();
     ///std.debug.print("{s}\n", .{mystr.str()});
     ///```
-    pub fn str(self: Self) []const u8 {
+    pub fn str(self: StringUnmanaged) []const u8 {
         if (self.buffer) |buffer| return buffer[0..self.size];
         return "";
     }
 
     /// Returns an owned slice of this string
-    pub fn toOwned(self: Self, allocator: std.mem.Allocator) Error!?[]u8 {
+    pub fn toOwned(self: StringUnmanaged, allocator: std.mem.Allocator) Error!?[]u8 {
         if (self.buffer != null) {
             const string = self.str();
             if (allocator.alloc(u8, string.len)) |newStr| {
@@ -825,10 +842,10 @@ pub const StringUnmanaged = struct {
     }
 
     /// Returns a character at the specified index
-    pub fn charAt(self: Self, index: usize) ?[]const u8 {
+    pub fn charAt(self: StringUnmanaged, index: usize) ?[]const u8 {
         if (self.buffer) |buffer| {
-            if (Self.getIndex(buffer, index, true)) |i| {
-                const size = Self.getUTF8Size(buffer[i]);
+            if (StringUnmanaged.getIndex(buffer, index, true)) |i| {
+                const size = StringUnmanaged.getUTF8Size(buffer[i]);
                 return buffer[i..(i + size)];
             }
         }
@@ -836,13 +853,13 @@ pub const StringUnmanaged = struct {
     }
 
     /// Returns amount of characters in the String
-    pub fn len(self: Self) usize {
+    pub fn len(self: StringUnmanaged) usize {
         if (self.buffer) |buffer| {
             var length: usize = 0;
             var i: usize = 0;
 
             while (i < self.size) {
-                i += Self.getUTF8Size(buffer[i]);
+                i += StringUnmanaged.getUTF8Size(buffer[i]);
                 length += 1;
             }
 
@@ -853,11 +870,11 @@ pub const StringUnmanaged = struct {
     }
 
     /// Finds the first occurrence of the string literal
-    pub fn find(self: Self, literal: []const u8) ?usize {
+    pub fn find(self: StringUnmanaged, literal: []const u8) ?usize {
         if (self.buffer) |buffer| {
             const index = std.mem.indexOf(u8, buffer[0..self.size], literal);
             if (index) |i| {
-                return Self.getIndex(buffer, i, false);
+                return StringUnmanaged.getIndex(buffer, i, false);
             }
         }
 
@@ -865,11 +882,11 @@ pub const StringUnmanaged = struct {
     }
 
     /// Finds the last occurrence of the string literal
-    pub fn rfind(self: Self, literal: []const u8) ?usize {
+    pub fn rfind(self: StringUnmanaged, literal: []const u8) ?usize {
         if (self.buffer) |buffer| {
             const index = std.mem.lastIndexOf(u8, buffer[0..self.size], literal);
             if (index) |i| {
-                return Self.getIndex(buffer, i, false);
+                return StringUnmanaged.getIndex(buffer, i, false);
             }
         }
 
@@ -877,19 +894,19 @@ pub const StringUnmanaged = struct {
     }
 
     /// Removes a character at the specified index
-    pub fn remove(self: *Self, index: usize) Error!void {
+    pub fn remove(self: *StringUnmanaged, index: usize) Error!void {
         try self.removeRange(index, index + 1);
     }
 
     /// Removes a range of character from the String
     /// Start (inclusive) - End (Exclusive)
-    pub fn removeRange(self: *Self, start: usize, end: usize) Error!void {
+    pub fn removeRange(self: *StringUnmanaged, start: usize, end: usize) Error!void {
         const length = self.len();
         if (end < start or end > length) return Error.InvalidRange;
 
         if (self.buffer) |buffer| {
-            const rStart = Self.getIndex(buffer, start, true).?;
-            const rEnd = Self.getIndex(buffer, end, true).?;
+            const rStart = StringUnmanaged.getIndex(buffer, start, true).?;
+            const rEnd = StringUnmanaged.getIndex(buffer, end, true).?;
             const difference = rEnd - rStart;
 
             var i: usize = rEnd;
@@ -902,47 +919,47 @@ pub const StringUnmanaged = struct {
     }
 
     /// Trims all whitelist characters at the start of the String.
-    pub fn trimStart(self: *Self, whitelist: []const u8) void {
+    pub fn trimStart(self: *StringUnmanaged, whitelist: []const u8) void {
         if (self.buffer) |buffer| {
             var i: usize = 0;
             while (i < self.size) : (i += 1) {
-                const size = Self.getUTF8Size(buffer[i]);
+                const size = StringUnmanaged.getUTF8Size(buffer[i]);
                 if (size > 1 or !inWhitelist(buffer[i], whitelist)) break;
             }
 
-            if (Self.getIndex(buffer, i, false)) |k| {
+            if (StringUnmanaged.getIndex(buffer, i, false)) |k| {
                 self.removeRange(0, k) catch {};
             }
         }
     }
 
     /// Trims all whitelist characters at the end of the String.
-    pub fn trimEnd(self: *Self, whitelist: []const u8) void {
+    pub fn trimEnd(self: *StringUnmanaged, whitelist: []const u8) void {
         self.reverse();
         self.trimStart(whitelist);
         self.reverse();
     }
 
     /// Trims all whitelist characters from both ends of the String
-    pub fn trim(self: *Self, whitelist: []const u8) void {
+    pub fn trim(self: *StringUnmanaged, whitelist: []const u8) void {
         self.trimStart(whitelist);
         self.trimEnd(whitelist);
     }
 
     /// Copies this String into a new one
     /// User is responsible for managing the new String
-    pub fn clone(self: Self, allocator: std.mem.Allocator) Error!Self {
-        var newString = Self.init();
+    pub fn clone(self: StringUnmanaged, allocator: std.mem.Allocator) Error!StringUnmanaged {
+        var newString = StringUnmanaged.init();
         try newString.concat(allocator, self.str());
         return newString;
     }
 
     /// Reverses the characters in this String
-    pub fn reverse(self: *Self) void {
+    pub fn reverse(self: *StringUnmanaged) void {
         if (self.buffer) |buffer| {
             var i: usize = 0;
             while (i < self.size) {
-                const size = Self.getUTF8Size(buffer[i]);
+                const size = StringUnmanaged.getUTF8Size(buffer[i]);
                 if (size > 1) std.mem.reverse(u8, buffer[i..(i + size)]);
                 i += size;
             }
@@ -952,7 +969,7 @@ pub const StringUnmanaged = struct {
     }
 
     /// Repeats this String n times
-    pub fn repeat(self: *Self, allocator: std.mem.Allocator, n: usize) Error!void {
+    pub fn repeat(self: *StringUnmanaged, allocator: std.mem.Allocator, n: usize) Error!void {
         try self.allocate(allocator, self.size * (n + 1));
         if (self.buffer) |buffer| {
             for (1..n + 1) |i| {
@@ -964,19 +981,19 @@ pub const StringUnmanaged = struct {
     }
 
     /// Checks the String is empty
-    pub inline fn isEmpty(self: Self) bool {
+    pub inline fn isEmpty(self: StringUnmanaged) bool {
         return self.size == 0;
     }
 
     /// Splits the String into a slice, based on a delimiter and an index
-    pub fn split(self: *const Self, delimiters: []const u8, index: usize) ?[]const u8 {
+    pub fn split(self: *const StringUnmanaged, delimiters: []const u8, index: usize) ?[]const u8 {
         if (self.buffer) |buffer| {
             var i: usize = 0;
             var block: usize = 0;
             var start: usize = 0;
 
             while (i < self.size) {
-                const size = Self.getUTF8Size(buffer[i]);
+                const size = StringUnmanaged.getUTF8Size(buffer[i]);
                 if (size == delimiters.len) {
                     if (std.mem.eql(u8, delimiters, buffer[i..(i + size)])) {
                         if (block == index) return buffer[start..i];
@@ -997,8 +1014,8 @@ pub const StringUnmanaged = struct {
     }
 
     /// Splits the String into slices, based on a delimiter.
-    pub fn splitAll(self: *const Self, delimiters: []const u8) ![][]const u8 {
-        var splitArr = std.ArrayList([]const u8).init(std.heap.page_allocator);
+    pub fn splitAll(self: *const StringUnmanaged, delimiters: []const u8) ![][]const u8 {
+        var splitArr = std.array_list.Managed([]const u8).init(std.heap.page_allocator);
         defer splitArr.deinit();
 
         var i: usize = 0;
@@ -1011,9 +1028,9 @@ pub const StringUnmanaged = struct {
 
     /// Splits the String into a new string, based on delimiters and an index
     /// The user of this function is in charge of the memory of the new String.
-    pub fn splitToString(self: *const Self, allocator: std.mem.Allocator, delimiters: []const u8, index: usize) Error!?Self {
+    pub fn splitToString(self: *const StringUnmanaged, allocator: std.mem.Allocator, delimiters: []const u8, index: usize) Error!?StringUnmanaged {
         if (self.split(delimiters, index)) |block| {
-            var string = Self.init();
+            var string = StringUnmanaged.init();
             try string.concat(allocator, block);
             return string;
         }
@@ -1023,8 +1040,8 @@ pub const StringUnmanaged = struct {
 
     /// Splits the String into a slice of new Strings, based on delimiters.
     /// The user of this function is in charge of the memory of the new Strings.
-    pub fn splitAllToStrings(self: *const Self, allocator: std.mem.Allocator, delimiters: []const u8) ![]Self {
-        var splitArr = std.ArrayList(Self).init(std.heap.page_allocator);
+    pub fn splitAllToStrings(self: *const StringUnmanaged, allocator: std.mem.Allocator, delimiters: []const u8) ![]StringUnmanaged {
+        var splitArr = std.array_list.Managed(StringUnmanaged).init(std.heap.page_allocator);
         defer splitArr.deinit();
 
         var i: usize = 0;
@@ -1036,8 +1053,8 @@ pub const StringUnmanaged = struct {
     }
 
     /// Splits the String into a slice of Strings by new line (\r\n or \n).
-    pub fn lines(self: *Self, allocator: std.mem.Allocator) ![]Self {
-        var lineArr = std.ArrayList(Self).init(std.heap.page_allocator);
+    pub fn lines(self: *StringUnmanaged, allocator: std.mem.Allocator) ![]StringUnmanaged {
+        var lineArr = std.array_list.Managed(StringUnmanaged).init(std.heap.page_allocator);
         defer lineArr.deinit();
 
         var selfClone = try self.clone(allocator);
@@ -1049,7 +1066,7 @@ pub const StringUnmanaged = struct {
     }
 
     /// Clears the contents of the String but leaves the capacity
-    pub fn clear(self: *Self) void {
+    pub fn clear(self: *StringUnmanaged) void {
         if (self.buffer) |buffer| {
             for (buffer) |*ch| ch.* = 0;
             self.size = 0;
@@ -1057,11 +1074,11 @@ pub const StringUnmanaged = struct {
     }
 
     /// Converts all (ASCII) uppercase letters to lowercase
-    pub fn toLowercase(self: *Self) void {
+    pub fn toLowercase(self: *StringUnmanaged) void {
         if (self.buffer) |buffer| {
             var i: usize = 0;
             while (i < self.size) {
-                const size = Self.getUTF8Size(buffer[i]);
+                const size = StringUnmanaged.getUTF8Size(buffer[i]);
                 if (size == 1) buffer[i] = std.ascii.toLower(buffer[i]);
                 i += size;
             }
@@ -1069,11 +1086,11 @@ pub const StringUnmanaged = struct {
     }
 
     /// Converts all (ASCII) uppercase letters to lowercase
-    pub fn toUppercase(self: *Self) void {
+    pub fn toUppercase(self: *StringUnmanaged) void {
         if (self.buffer) |buffer| {
             var i: usize = 0;
             while (i < self.size) {
-                const size = Self.getUTF8Size(buffer[i]);
+                const size = StringUnmanaged.getUTF8Size(buffer[i]);
                 if (size == 1) buffer[i] = std.ascii.toUpper(buffer[i]);
                 i += size;
             }
@@ -1081,7 +1098,7 @@ pub const StringUnmanaged = struct {
     }
 
     // Convert the first (ASCII) character of each word to uppercase
-    pub fn toCapitalized(self: *Self) void {
+    pub fn toCapitalized(self: *StringUnmanaged) void {
         if (self.size == 0) return;
 
         var buffer = self.buffer.?;
@@ -1108,12 +1125,12 @@ pub const StringUnmanaged = struct {
 
     /// Creates a String from a given range
     /// User is responsible for managing the new String
-    pub fn substr(self: Self, allocator: std.mem.Allocator, start: usize, end: usize) Error!Self {
-        var result = Self.init();
+    pub fn substr(self: StringUnmanaged, allocator: std.mem.Allocator, start: usize, end: usize) Error!StringUnmanaged {
+        var result = StringUnmanaged.init();
 
         if (self.buffer) |buffer| {
-            if (Self.getIndex(buffer, start, true)) |rStart| {
-                if (Self.getIndex(buffer, end, true)) |rEnd| {
+            if (StringUnmanaged.getIndex(buffer, start, true)) |rStart| {
+                if (StringUnmanaged.getIndex(buffer, end, true)) |rEnd| {
                     if (rEnd < rStart or rEnd > self.size)
                         return Error.InvalidRange;
                     try result.concat(allocator, buffer[rStart..rEnd]);
@@ -1124,31 +1141,66 @@ pub const StringUnmanaged = struct {
         return result;
     }
 
-    // Iterator support
-    pub usingnamespace struct {
-        pub const StringIterator = struct {
-            string: *const Self,
-            index: usize,
+    // Writer functionality for the String.
+    // pub const Writer = std.io.Writer(*String, Error, appendWrite);
+    pub const Writer = struct {
+        string: *StringUnmanaged,
+        interface: std.Io.Writer,
+        err: ?Error = null,
 
-            pub fn next(it: *StringIterator) ?[]const u8 {
-                if (it.string.buffer) |buffer| {
-                    if (it.index == it.string.size) return null;
-                    const i = it.index;
-                    it.index += Self.getUTF8Size(buffer[i]);
-                    return buffer[i..it.index];
-                } else {
-                    return null;
-                }
-            }
-        };
-
-        pub fn iterator(self: *const Self) StringIterator {
-            return StringIterator{
-                .string = self,
-                .index = 0,
+        fn drain(w: *std.Io.Writer, data: []const []const u8, splat: usize) std.Io.Writer.Error!usize {
+            _ = splat;
+            const a: *@This() = @alignCast(@fieldParentPtr("interface", w));
+            const buffered = w.buffered();
+            if (buffered.len != 0) return w.consume(a.string.appendWrite(buffered) catch |err| {
+                a.err = err;
+                return error.WriteFailed;
+            });
+            return a.string.appendWrite(data[0]) catch |err| {
+                a.err = err;
+                return error.WriteFailed;
             };
         }
     };
+
+    pub fn writer(self: *StringUnmanaged, buffer: []u8) Writer {
+        return .{
+            .string = self,
+            .interface = .{
+                .buffer = buffer,
+                .vtable = &.{ .drain = Writer.drain },
+            },
+        };
+    }
+
+    fn appendWrite(self: *StringUnmanaged, m: []const u8) !usize {
+        try self.concat(m);
+        return m.len;
+    }
+
+    // Iterator support
+    pub const StringIterator = struct {
+        string: *const StringUnmanaged,
+        index: usize,
+
+        pub fn next(it: *StringIterator) ?[]const u8 {
+            if (it.string.buffer) |buffer| {
+                if (it.index == it.string.size) return null;
+                const i = it.index;
+                it.index += StringUnmanaged.getUTF8Size(buffer[i]);
+                return buffer[i..it.index];
+            } else {
+                return null;
+            }
+        }
+    };
+
+    pub fn iterator(self: *const StringUnmanaged) StringIterator {
+        return StringIterator{
+            .string = self,
+            .index = 0,
+        };
+    }
 
     /// Returns whether or not a character is whitelisted
     fn inWhitelist(char: u8, whitelist: []const u8) bool {
@@ -1175,7 +1227,7 @@ pub const StringUnmanaged = struct {
             } else {
                 if (i == index) return j;
             }
-            i += Self.getUTF8Size(unicode[i]);
+            i += StringUnmanaged.getUTF8Size(unicode[i]);
             j += 1;
         }
 
@@ -1190,13 +1242,13 @@ pub const StringUnmanaged = struct {
     }
 
     /// Sets the contents of the String
-    pub fn setStr(self: *Self, allocator: std.mem.Allocator, contents: []const u8) Error!void {
+    pub fn setStr(self: *StringUnmanaged, allocator: std.mem.Allocator, contents: []const u8) Error!void {
         self.clear();
         try self.concat(allocator, contents);
     }
 
     /// Checks the start of the string against a literal
-    pub fn startsWith(self: *Self, literal: []const u8) bool {
+    pub fn startsWith(self: *StringUnmanaged, literal: []const u8) bool {
         if (self.buffer) |buffer| {
             const index = std.mem.indexOf(u8, buffer[0..self.size], literal);
             return index == 0;
@@ -1205,7 +1257,7 @@ pub const StringUnmanaged = struct {
     }
 
     /// Checks the end of the string against a literal
-    pub fn endsWith(self: *Self, literal: []const u8) bool {
+    pub fn endsWith(self: *StringUnmanaged, literal: []const u8) bool {
         if (self.buffer) |buffer| {
             const index = std.mem.lastIndexOf(u8, buffer[0..self.size], literal);
             const i: usize = self.size - literal.len;
@@ -1215,7 +1267,7 @@ pub const StringUnmanaged = struct {
     }
 
     /// Replaces all occurrences of a string literal with another
-    pub fn replace(self: *Self, allocator: std.mem.Allocator, needle: []const u8, replacement: []const u8) !bool {
+    pub fn replace(self: *StringUnmanaged, allocator: std.mem.Allocator, needle: []const u8, replacement: []const u8) !bool {
         if (self.buffer) |buffer| {
             const InputSize = self.size;
             const size = std.mem.replacementSize(u8, buffer[0..InputSize], needle, replacement);
@@ -1233,7 +1285,7 @@ pub const StringUnmanaged = struct {
     }
 
     /// Checks if the needle String is within the source String
-    pub fn includesString(self: *Self, needle: Self) bool {
+    pub fn includesString(self: *StringUnmanaged, needle: StringUnmanaged) bool {
         if (self.size == 0 or needle.size == 0) return false;
 
         if (self.buffer) |buffer| {
@@ -1250,7 +1302,7 @@ pub const StringUnmanaged = struct {
     }
 
     /// Checks if the needle literal is within the source String
-    pub fn includesLiteral(self: *Self, needle: []const u8) bool {
+    pub fn includesLiteral(self: *StringUnmanaged, needle: []const u8) bool {
         if (self.size == 0 or needle.len == 0) return false;
 
         if (self.buffer) |buffer| {
