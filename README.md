@@ -160,7 +160,7 @@ If there are any issues with <b>complexity</b> please <b>open an issue</b>
 | Both                           | trimStart          | Remove whitelist from the start                                          |
 | Both                           | truncate           | Realloc to the length                                                    |
 | Both                           | setStr             | Set's buffer value from string literal                                   |
-| Managed Only                   | writer             | Returns a std.io.Writer for the String                                   |
+| Managed Only                   | writer             | Returns a std.Io.Writer for the String                                   |
 | Both                           | startsWith         | Determines if the given string begins with the given value               |
 | Both                           | endsWith           | Determines if the given string ends with the given value                 |
 | Both                           | replace            | Replace all occurrences of the search string with the replacement string |
