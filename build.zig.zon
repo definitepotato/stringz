@@ -1,7 +1,7 @@
 .{
     .name = .stringz,
     .version = "0.10.0",
-    .minimum_zig_version = "0.14.0",
-    .fingerprint = 0xcd46d25165d43c8a,
+    .minimum_zig_version = "0.15.1",
+    .fingerprint = 0xd2ee692e5a4bdae9,
     .paths = .{""},
 }
