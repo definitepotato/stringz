@@ -1,6 +1,6 @@
 # Zig String (A UTF-8 String Library)
 
-This library is a UTF-8 compatible **string** library for the **Zig** programming language. I copied [JakubSzark's](https://github.com/JakubSzark/zig-string) String implementation and expanded on it.
+This library is a UTF-8 compatible **string** library for the **Zig** programming language. I copied [JakubSzark's](https://github.com/JakubSzark/zig-string) String implementation and expanded on it adding a Managed and Unmanaged String.
 
 # Basic Usage
 
